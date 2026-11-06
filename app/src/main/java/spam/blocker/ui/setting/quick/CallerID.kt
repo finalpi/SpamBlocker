@@ -1,6 +1,8 @@
 package spam.blocker.ui.setting.quick
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.text.Html
 import android.view.Gravity
 import android.view.View
@@ -65,6 +67,8 @@ private const val LegacyCallerIdTemplate =
 """
 
 const val FullHtmlTagList = "https://github.com/aj3423/SpamBlocker/issues/555"
+private val callerIdHideHandler by lazy { Handler(Looper.getMainLooper()) }
+private var callerIdHideCallback: Runnable? = null
 
 private fun migrateCallerIdDefaults(ctx: Context) {
     val prefs = spf.CallerID(ctx)
@@ -88,6 +92,7 @@ fun showCallerIdWindow(
     carrier: String? = "{carrier}",
     category: String? = "{category}",
     categoryIsSpam: Boolean = false,
+    autoHideMs: Long = 0,
 ) {
     migrateCallerIdDefaults(ctx)
     val spf = spf.CallerID(ctx)
@@ -95,6 +100,9 @@ fun showCallerIdWindow(
     // Permission.phoneState is needed to close the floating dialog when the call gets answered or rejected.
     if(!Permission.phoneState.isGranted || !Permission.showOverlay.isGranted)
         return
+
+    callerIdHideCallback?.let { callerIdHideHandler.removeCallbacks(it) }
+    callerIdHideCallback = null
 
     val label = category?.trim()?.takeIf { it.isNotEmpty() }
         ?: ctx.getString(if (categoryIsSpam) R.string.caller_id_spam_type else R.string.caller_id_unknown_type)
@@ -120,6 +128,13 @@ fun showCallerIdWindow(
             spf.y = newY
         }
         show(ctx, callerIdView(ctx, content))
+    }
+    if (autoHideMs > 0) {
+        val application = ctx.applicationContext
+        callerIdHideCallback = Runnable {
+            FloatingWindow.hide(application)
+            callerIdHideCallback = null
+        }.also { callerIdHideHandler.postDelayed(it, autoHideMs) }
     }
 }
 

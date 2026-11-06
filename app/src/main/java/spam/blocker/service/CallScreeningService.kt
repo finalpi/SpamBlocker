@@ -24,6 +24,7 @@ import spam.blocker.service.bot.executeAll
 import spam.blocker.service.checker.Checker
 import spam.blocker.service.checker.ICheckResult
 import spam.blocker.service.checker.ByApiQuery
+import spam.blocker.service.checker.BySpamDb
 import spam.blocker.service.reporting.maybeAutoReportCall
 import spam.blocker.ui.NotificationTrampolineActivity
 import spam.blocker.ui.setting.quick.showCallerIdWindow
@@ -288,29 +289,30 @@ class CallScreeningService : CallScreeningService() {
             val recordId = logToHistoryDb(ctx, r, rawNumber, cnap, simSlot, isTest, fullScreeningLog, anythingWrong)
 
             CoroutineScope(IO).launch {
+                val apiResult = (r as? ByApiQuery)?.detail?.queryResult
+                val category = apiResult?.category?.takeIf { it.isNotBlank() } ?: callerIdResult?.category
+                val categoryIsSpam = (apiResult?.let { it.determined && it.isSpam }
+                    ?: (callerIdResult?.determined == true && callerIdResult.isSpam)) || r is BySpamDb
+                withContext(Main) {
+                    if (showCallerId) {
+                        showCallerIdWindow(
+                            ctx = ctx,
+                            reason = r.resultReasonStr(ctx),
+                            geolocation = numberGeoLocation(ctx, rawNumber),
+                            carrier = numberCarrier(ctx, rawNumber),
+                            category = category,
+                            categoryIsSpam = categoryIsSpam,
+                            autoHideMs = if (r.shouldBlock()) 4000L else 0L,
+                        )
+                    }
+                }
+
                 if (r.shouldBlock()) { // blocked
                     // 2. Show notification
                     showSpamNotification(ctx, r, rawNumber)
 
                     // 3. Report spam number
                     maybeAutoReportCall(ctx, r, recordId, rawNumber, isTest)
-                } else { // allowed
-                    // 4. Show CallerID window
-                    withContext(Main) {
-                        if (showCallerId) {
-                            showCallerIdWindow(
-                                ctx = ctx,
-                                reason = r.resultReasonStr(ctx),
-                                geolocation = numberGeoLocation(ctx, rawNumber),
-                                carrier = numberCarrier(ctx, rawNumber),
-                                category = (r as? ByApiQuery)?.detail?.queryResult?.category
-                                    ?.takeIf { it.isNotBlank() } ?: callerIdResult?.category,
-                                categoryIsSpam = (r as? ByApiQuery)?.detail?.queryResult?.let {
-                                    it.determined && it.isSpam
-                                } ?: (callerIdResult?.determined == true && callerIdResult.isSpam),
-                            )
-                        }
-                    }
                 }
 
                 // 5. Run post screening workflows
