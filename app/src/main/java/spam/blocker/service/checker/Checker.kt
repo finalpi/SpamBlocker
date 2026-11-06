@@ -29,6 +29,8 @@ import spam.blocker.def.Def
 import spam.blocker.def.Def.RESULT_ALLOWED_BY_NAIVE_BAYES
 import spam.blocker.def.Def.RESULT_BLOCKED_BY_NAIVE_BAYES
 import spam.blocker.service.bot.ActionContext
+import spam.blocker.service.bot.ApiQueryResult
+import java.util.concurrent.atomic.AtomicReference
 import spam.blocker.service.bot.CalendarEvent
 import spam.blocker.service.bot.PreCallScreening
 import spam.blocker.service.bot.CallThrottling
@@ -78,6 +80,28 @@ class CheckContext(
     val startTimeMillis: Long = System.currentTimeMillis(),
     val checkers: List<IChecker>,
     var anythingWrong: Boolean = false,
+) {
+    private val callerIdMetadata = AtomicReference<ApiQueryResult?>(null)
+
+    fun rememberCallerIdResult(result: ApiQueryResult) {
+        callerIdMetadata.updateAndGet { current ->
+            when {
+                current == null -> result
+                result.determined && result.isSpam && !current.isSpam -> result
+                !result.category.isNullOrBlank() && current.category.isNullOrBlank() -> result
+                else -> current
+            }
+        }
+    }
+
+    fun callerIdResult(): ApiQueryResult? = callerIdMetadata.get()
+}
+
+data class CallCheckResult(
+    val result: ICheckResult,
+    val fullScreeningLog: String?,
+    val anythingWrong: Boolean,
+    val callerIdResult: ApiQueryResult?,
 )
 
 
@@ -1019,6 +1043,9 @@ class Checker { // for namespace only
                             }
 
                             val result = aCtx.racingResult
+                            if (success && result != null) {
+                                cCtx.rememberCallerIdResult(result)
+                            }
                             if (success && result?.determined == true) {
                                 result
                             } else {
@@ -1759,7 +1786,7 @@ class Checker { // for namespace only
             return checkers
         }
 
-        // Return value: Triple< check_result, full_log, anything_went_wrong >
+        // Caller metadata is independent of the winning screening rule.
         fun checkCall(
             ctx: Context,
             rawNumber: String,
@@ -1768,7 +1795,7 @@ class Checker { // for namespace only
             simSlot: Int? = null,
             logger: ILogger? = null,
             checkers: List<IChecker> = defaultCallCheckers(ctx),
-        ): Triple<ICheckResult, String?, Boolean> {
+        ): CallCheckResult {
             val cCtx = CheckContext(
                 rawNumber = rawNumber,
                 cnap = cnap,
@@ -1793,8 +1820,8 @@ class Checker { // for namespace only
             }
             val fullScreeningLog = logger?.getSaveableOutput()?.serialize() ?: ""
 
-            return Triple(
-                result, fullScreeningLog, cCtx.anythingWrong
+            return CallCheckResult(
+                result, fullScreeningLog, cCtx.anythingWrong, cCtx.callerIdResult()
             )
         }
 

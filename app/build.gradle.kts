@@ -14,6 +14,12 @@ android {
     }
 
     signingConfigs {
+        create("callerId") {
+            storeFile = System.getenv("CALLERID_KEYSTORE_FILE")?.let { file(it) }
+            storePassword = System.getenv("CALLERID_STORE_PASSWORD")
+            keyPassword = System.getenv("CALLERID_KEY_PASSWORD")
+            keyAlias = "callerid"
+        }
         create("release") {
             enableV2Signing = false
             enableV3Signing = true
@@ -65,6 +71,13 @@ android {
             initWith(getByName("release"))
             isMinifyEnabled = false
             isShrinkResources = false
+            matchingFallbacks += listOf("release")
+        }
+        create("callerId") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".callerid"
+            versionNameSuffix = "-callerid.1"
+            signingConfig = signingConfigs.getByName("callerId")
             matchingFallbacks += listOf("release")
         }
     }
@@ -126,7 +139,13 @@ dependencies {
 
     // testing
     testImplementation(libs.junit.jupiter)
+    testImplementation("io.mockk:mockk:${libs.versions.mockk.get()}")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     androidTestImplementation(libs.mockk)
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }

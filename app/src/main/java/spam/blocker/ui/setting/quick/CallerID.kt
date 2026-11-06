@@ -34,8 +34,17 @@ import spam.blocker.util.Permission
 import spam.blocker.util.PermissionWrapper
 import spam.blocker.util.spf
 
-const val DefaultCallerIdBgColor = 0x20808080
-const val DefaultCallerIdTemplate =
+val DefaultCallerIdBgColor = 0xE6111827.toInt()
+const val DefaultCallerIdTemplate = """<font color="#94A3B8"><small>来电类型</small></font>
+<br>
+<font color="{category_color}"><b><big><big><big>{category}</big></big></big></b></font>
+<br><br>
+<font color="#F1F5F9"><b><big>{geolocation}</big></b></font>
+<br>
+<font color="#CBD5E1"><big>{carrier}</big></font>
+"""
+
+private const val LegacyCallerIdTemplate =
 """<font color="#50c878">
     <big><big>
         {reason}
@@ -57,6 +66,14 @@ const val DefaultCallerIdTemplate =
 
 const val FullHtmlTagList = "https://github.com/aj3423/SpamBlocker/issues/555"
 
+private fun migrateCallerIdDefaults(ctx: Context) {
+    val prefs = spf.CallerID(ctx)
+    if (prefs.template.trim() == LegacyCallerIdTemplate.trim()) {
+        prefs.template = DefaultCallerIdTemplate
+        if (prefs.bgColor == 0x20808080) prefs.bgColor = DefaultCallerIdBgColor
+    }
+}
+
 fun callerIdView(ctx: Context, template: String) : View {
     return TextView(ctx).apply {
         text = Html.fromHtml(template, Html.FROM_HTML_MODE_LEGACY)
@@ -69,18 +86,32 @@ fun showCallerIdWindow(
     reason: String? = "{reason}",
     geolocation: String? = "{geolocation}",
     carrier: String? = "{carrier}",
+    category: String? = "{category}",
+    categoryIsSpam: Boolean = false,
 ) {
+    migrateCallerIdDefaults(ctx)
     val spf = spf.CallerID(ctx)
 
     // Permission.phoneState is needed to close the floating dialog when the call gets answered or rejected.
     if(!Permission.phoneState.isGranted || !Permission.showOverlay.isGranted)
         return
 
-    // Resolve tags: {reason} {carrier} {geolocation}
-    val content = spf.template
-        .replace("{reason}", reason?.trim().takeIf { !it.isNullOrBlank() } ?: "—")
-        .replace("{geolocation}", geolocation?.trim().takeIf { !it.isNullOrBlank() } ?: "—")
-        .replace("{carrier}", carrier?.trim().takeIf { !it.isNullOrBlank() } ?: "—")
+    val label = category?.trim()?.takeIf { it.isNotEmpty() }
+        ?: ctx.getString(if (categoryIsSpam) R.string.caller_id_spam_type else R.string.caller_id_unknown_type)
+    val labelColor = when {
+        categoryIsSpam -> "#FF5252"
+        category.isNullOrBlank() -> "#FFB74D"
+        else -> "#38BDF8"
+    }
+    val values = mapOf(
+        "{reason}" to (reason?.trim()?.takeIf { it.isNotEmpty() } ?: "—"),
+        "{geolocation}" to (geolocation?.trim()?.takeIf { it.isNotEmpty() } ?: "—"),
+        "{carrier}" to (carrier?.trim()?.takeIf { it.isNotEmpty() } ?: "—"),
+        "{category}" to Html.escapeHtml(label),
+        "{category_color}" to labelColor,
+    )
+    val content = Regex("\\{(?:reason|geolocation|carrier|category|category_color)\\}")
+        .replace(spf.template) { values.getValue(it.value) }
 
     FloatingWindow.apply {
         update(ctx, bgColor = spf.bgColor, x = spf.x, y = spf.y)
@@ -97,6 +128,7 @@ private fun ConfigDialog(
     trigger: MutableState<Boolean>
 ) {
     val ctx = LocalContext.current
+    migrateCallerIdDefaults(ctx)
     val spf = spf.CallerID(ctx)
 
     var bgColor by remember { mutableStateOf(Color(spf.bgColor)) }

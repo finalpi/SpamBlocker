@@ -607,37 +607,33 @@ class ParseQueryResult(
 
 
         // 3. extract category
-        if (determined) {
-            if (categorySig.trim().isNotEmpty()) {
-                val mapping = if (categoryMapping.isNotEmpty()) {
-                    JSONObject(categoryMapping).toMap()
-                } else {
-                    mapOf()
-                }
-
-                val opts = Util.flagsToRegexOptions(categoryFlags)
-                category = categorySig.trim().toRegex(opts).findAll(html)
-                    .map {
-                        it.groups
-                            .drop(1)
-                            .filterNotNull()
-                            .firstOrNull()?.value
-                    }
-                    .filterNot { it.isNullOrEmpty() }
-                    .map {
-                        // Map "1", "2" to human-readable "Fraud", "Reminder" if it's configured
-                        //  in the CategoryMapping, otherwise keep it as is.
-                        mapping.getOrDefault(it, it) as String
-                    }
-                    .joinToString(" | ")
+        if (categorySig.trim().isNotEmpty()) {
+            val mapping = if (categoryMapping.isNotEmpty()) {
+                JSONObject(categoryMapping).toMap()
+            } else {
+                mapOf()
             }
+
+            val opts = Util.flagsToRegexOptions(categoryFlags)
+            category = categorySig.trim().toRegex(opts).findAll(html)
+                .map {
+                    it.groups
+                        .drop(1)
+                        .filterNotNull()
+                        .firstOrNull()?.value
+                }
+                .filterNot { it.isNullOrEmpty() }
+                .map {
+                    // Map "1", "2" to human-readable "Fraud", "Reminder" if it's configured
+                    //  in the CategoryMapping, otherwise keep it as is.
+                    mapping.getOrDefault(it, it) as String
+                }
+                .joinToString(" | ")
         }
 
-        // 4. extract comments
-        if (determined) {
-            if (commentSig.trim().isNotEmpty()) {
-                comment = commentSig.regexExtract(html, commentFlags)
-            }
+        // 4. Extract display comments even when the verdict is undetermined.
+        if (commentSig.trim().isNotEmpty()) {
+            comment = commentSig.regexExtract(html, commentFlags)
         }
 
         // show log
@@ -656,7 +652,8 @@ class ParseQueryResult(
         }
 
         // Only update the racingResult when it's the first `ParseQueryResult` or determined.
-        if (determined || aCtx.racingResult == null) {
+        if (determined || aCtx.racingResult == null ||
+            (aCtx.racingResult?.determined != true && !category.isNullOrBlank())) {
             val result = ApiQueryResult(
                 determined = determined,
                 isSpam = isNegative,

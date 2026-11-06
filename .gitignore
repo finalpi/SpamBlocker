@@ -9,4 +9,8 @@ app/release/
 app/debug/
 auto_translate/go.sum
 local.properties
+.private/
+.callerid-signing/
+*.jks
+*.p12
 auto_translate/.vscode/

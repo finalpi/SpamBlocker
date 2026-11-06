@@ -64,6 +64,8 @@
     <string name="preview">预览</string>
     <string name="content_template">内容模板</string>
     <string name="help_caller_id_template">
+        分类变量 {category} 显示 API 识别类型，{category_color} 根据类型提供颜色。
+
         <![CDATA[
         来电显示窗口中显示的内容，采用 HTML 格式。 <br>
         <br>
@@ -131,4 +133,6 @@
         屏蔽来自 <no_translate><sample>Verizon Wireless</sample></no_translate> 的号码 <br>
         ]]>
     </string>
+    <string name="caller_id_unknown_type">未识别类型</string>
+    <string name="caller_id_spam_type">骚扰电话</string>
 </resources>

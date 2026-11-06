@@ -1,0 +1,91 @@
+name: Caller ID APK
+
+on:
+  push:
+    branches: [codex/caller-id-type-display]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caller-id-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: github.repository == 'finalpi/SpamBlocker'
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
+      - name: Install Android SDK
+        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
+      - name: Prepare caller ID signing key
+        env:
+          CALLERID_KEYSTORE_BASE64: ${{ secrets.CALLERID_KEYSTORE_BASE64 }}
+        run: |
+          umask 077
+          printf '%s' "$CALLERID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/callerid-signing.p12"
+          echo "CALLERID_KEYSTORE_FILE=$RUNNER_TEMP/callerid-signing.p12" >> "$GITHUB_ENV"
+      - name: Test and build signed APK
+        env:
+          CALLERID_STORE_PASSWORD: ${{ secrets.CALLERID_STORE_PASSWORD }}
+          CALLERID_KEY_PASSWORD: ${{ secrets.CALLERID_KEY_PASSWORD }}
+        run: |
+          chmod +x gradlew
+          ./gradlew --no-daemon --max-workers=2 :app:testFdroidCallerIdUnitTest :app:assembleFdroidCallerId
+      - name: Verify APK and prepare download
+        run: |
+          mkdir -p dist
+          apk=app/build/outputs/apk/fdroid/callerId/app-fdroid-callerId.apk
+          "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" | tee dist/signature.txt
+          "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > dist/apk-info.txt
+          grep -q "name='spam.blocker.callerid'" dist/apk-info.txt
+          grep -q 'android.permission.INTERNET' dist/apk-info.txt
+          cp "$apk" dist/SpamBlocker-CallerID-5.20.1.apk
+          (cd dist && sha256sum SpamBlocker-CallerID-5.20.1.apk > SHA256SUMS.txt)
+          printf 'Repository %s\nCommit %s\nRun %s\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" > dist/build-info.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SpamBlocker-CallerID-APK
+          path: dist/
+          if-no-files-found: error
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Caller-ID-test-results
+          path: app/build/test-results/
+          if-no-files-found: ignore
+      - name: Remove temporary signing key
+        if: always()
+        run: rm -f "$RUNNER_TEMP/callerid-signing.p12"
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: SpamBlocker-CallerID-APK
+          path: dist
+      - name: Publish installable APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="callerid-5.20.1-$GITHUB_RUN_NUMBER"
+          gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
+            --title "Caller ID 5.20.1 · build $GITHUB_RUN_NUMBER" --notes-file Docs/CALLER_ID_FORK.md \
+            dist/SpamBlocker-CallerID-5.20.1.apk dist/SHA256SUMS.txt dist/signature.txt dist/apk-info.txt dist/build-info.txt

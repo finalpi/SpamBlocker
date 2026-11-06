@@ -23,6 +23,7 @@ import spam.blocker.service.bot.Ringtone
 import spam.blocker.service.bot.executeAll
 import spam.blocker.service.checker.Checker
 import spam.blocker.service.checker.ICheckResult
+import spam.blocker.service.checker.ByApiQuery
 import spam.blocker.service.reporting.maybeAutoReportCall
 import spam.blocker.ui.NotificationTrampolineActivity
 import spam.blocker.ui.setting.quick.showCallerIdWindow
@@ -280,7 +281,7 @@ class CallScreeningService : CallScreeningService() {
             logi("processCall()")
 
             // 0. check the number with all rules, get the result
-            val (r, fullScreeningLog, anythingWrong) = Checker.checkCall(
+            val (r, fullScreeningLog, anythingWrong, callerIdResult) = Checker.checkCall(
                 ctx, rawNumber = rawNumber, cnap = cnap, callDetails = callDetails, simSlot = simSlot, logger = logger)
 
             // 1. log result to history db
@@ -301,7 +302,12 @@ class CallScreeningService : CallScreeningService() {
                                 ctx = ctx,
                                 reason = r.resultReasonStr(ctx),
                                 geolocation = numberGeoLocation(ctx, rawNumber),
-                                carrier = numberCarrier(ctx, rawNumber)
+                                carrier = numberCarrier(ctx, rawNumber),
+                                category = (r as? ByApiQuery)?.detail?.queryResult?.category
+                                    ?.takeIf { it.isNotBlank() } ?: callerIdResult?.category,
+                                categoryIsSpam = (r as? ByApiQuery)?.detail?.queryResult?.let {
+                                    it.determined && it.isSpam
+                                } ?: (callerIdResult?.determined == true && callerIdResult.isSpam),
                             )
                         }
                     }

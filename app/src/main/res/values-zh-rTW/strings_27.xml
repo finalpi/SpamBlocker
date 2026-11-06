@@ -64,6 +64,8 @@
     <string name="preview">預覽</string>
     <string name="content_template">內容範本</string>
     <string name="help_caller_id_template">
+        分類變數 {category} 顯示 API 識別類型，{category_color} 根據類型提供顏色。
+
         <![CDATA[
         來電顯示視窗中顯示的內容，採用 HTML 格式。 <br>
         <br>
@@ -131,4 +133,6 @@
         封鎖來自 <no_translate><sample>Verizon Wireless</sample></no_translate> 的號碼 <br>
         ]]>
     </string>
+    <string name="caller_id_unknown_type">未識別類型</string>
+    <string name="caller_id_spam_type">騷擾電話</string>
 </resources>
