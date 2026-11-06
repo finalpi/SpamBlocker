@@ -27,7 +27,7 @@ jobs:
           java-version: '17'
       - uses: gradle/actions/setup-gradle@017a9effdb900e5b5b2fddfb590a105619dca3c3
       - name: Install Android SDK
-        run: sdkmanager 'platforms;android-37' 'build-tools;37.0.0'
+        run: '"$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-37" "build-tools;37.0.0"'
       - name: Prepare caller ID signing key
         env:
           CALLERID_KEYSTORE_BASE64: ${{ secrets.CALLERID_KEYSTORE_BASE64 }}
@@ -48,10 +48,10 @@ jobs:
           apk=app/build/outputs/apk/fdroid/callerId/app-fdroid-callerId.apk
           "$ANDROID_HOME/build-tools/37.0.0/apksigner" verify --verbose --print-certs "$apk" | tee dist/signature.txt
           "$ANDROID_HOME/build-tools/37.0.0/aapt2" dump badging "$apk" > dist/apk-info.txt
-          grep -q "name='spam.blocker.callerid'" dist/apk-info.txt
+          grep -q "name='spam.blocker'" dist/apk-info.txt
           grep -q 'android.permission.INTERNET' dist/apk-info.txt
-          cp "$apk" dist/SpamBlocker-CallerID-5.20.1.apk
-          (cd dist && sha256sum SpamBlocker-CallerID-5.20.1.apk > SHA256SUMS.txt)
+          cp "$apk" dist/app-release.apk
+          (cd dist && sha256sum app-release.apk > SHA256SUMS.txt)
           printf 'Repository %s\nCommit %s\nRun %s\n' "$GITHUB_REPOSITORY" "$GITHUB_SHA" "$GITHUB_RUN_ID" > dist/build-info.txt
       - uses: actions/upload-artifact@v4
         with:
@@ -88,4 +88,4 @@ jobs:
           tag="callerid-5.20.1-$GITHUB_RUN_NUMBER"
           gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "Caller ID 5.20.1 · build $GITHUB_RUN_NUMBER" --notes-file Docs/CALLER_ID_FORK.md \
-            dist/SpamBlocker-CallerID-5.20.1.apk dist/SHA256SUMS.txt dist/signature.txt dist/apk-info.txt dist/build-info.txt
+            dist/app-release.apk dist/SHA256SUMS.txt dist/signature.txt dist/apk-info.txt dist/build-info.txt

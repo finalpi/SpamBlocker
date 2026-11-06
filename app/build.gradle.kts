@@ -75,7 +75,6 @@ android {
         }
         create("callerId") {
             initWith(getByName("release"))
-            applicationIdSuffix = ".callerid"
             versionNameSuffix = "-callerid.1"
             signingConfig = signingConfigs.getByName("callerId")
             matchingFallbacks += listOf("release")

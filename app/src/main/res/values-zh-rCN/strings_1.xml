@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">来电分类增强</string>
+    <string name="app_name">骚扰拦截</string>
     <string name="setting">设置</string>
     <string name="call">通话</string>
     <string name="sms">短信</string>

@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">來電分類增強</string>
+    <string name="app_name">來電過濾器</string>
     <string name="setting">設定</string>
     <string name="call">通話</string>
     <string name="sms">簡訊</string>
